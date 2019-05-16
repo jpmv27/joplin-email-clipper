@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<overlay id="joplin-menu"
+  xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+  <script type="application/javascript" src="chrome://emailclipper/content/emailclipper.js"/>
+  <menupopup id="otherActionsPopup">
+    <menuitem id="joplin-sendtojoplin"
+      label="Send to Joplin"
+      accesskey="J"
+      insertbefore="viewSourceMenuItem"
+      oncommand="JEC_sendToJoplin()"/>
+  </menupopup>
+</overlay>

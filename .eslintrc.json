@@ -1,0 +1,20 @@
+{
+  "env": {
+    "browser": true,
+    "es6": true
+  },
+  "extends": "eslint:recommended",
+  "globals": {
+    "ChromeUtils": "readwrite",
+    "gMessageDisplay": "writable",
+    "jsmime" : "readwrite",
+    "MsgHdrToMimeMessage": "writable"
+  },
+  "parserOptions": {
+    "ecmaVersion": 2018
+  },
+  "rules": {
+    "no-console": ["error", { "allow": ["error", "info"] }],
+    "strict": ["error", "global"]
+  }
+}

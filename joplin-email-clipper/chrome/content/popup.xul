@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<?xml-stylesheet href="chrome://global/skin/" type="text/css"?>
+<window id="joplin-dialog-window"
+  title="Joplin Email Clipper"
+  orient="vertical"
+  xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+  <label value="Destination notebook:" control="joplin-notebook-menu"/>
+  <menulist id="joplin-notebook-menu" disabled="true">
+    <menupopup id="joplin-notebook-list">
+    </menupopup>
+  </menulist>
+  <button id="joplin-confirm" label="Confirm" disabled="true" accesskey="c"/>
+  <label value="Preview:"/>
+  <textbox id="joplin-preview-subject" readonly="true"/>
+  <textbox id="joplin-preview-body" flex="1" multiline="true" readonly="true"/>
+  <label value="Service status:" control="joplin-status"/>
+  <textbox id="joplin-status" readonly="true" value="Pending"/>
+</window>

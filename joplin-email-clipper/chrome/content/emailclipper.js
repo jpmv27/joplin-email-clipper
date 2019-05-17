@@ -267,15 +267,32 @@ class JEC_EmailClipper {
   }
 
   messageToNote_(msg) {
-    let note = '| | |\n' +
-               '--|--\n' +
-               '**From:** | ' + msg.from + '\n' +
-               '**Subject:** | ' + msg.subject + '\n' +
-               '**To:** | ' + msg.to + '\n';
+    const titleBlock = [
+      { prop: 'from',    label: 'From',    optional: false },
+      { prop: 'subject', label: 'Subject', optional: false },
+      { prop: 'to',      label: 'To',      optional: false },
+      { prop: 'cc',      label: 'Cc',      optional: true  }
+    ];
 
-    if (msg.cc) {
-      note += '**Cc:** | ' + msg.cc + '\n';
-    }
+    // Find maximum length of labels and properties
+    let maxLabel = 0;
+    let maxProp = 0;
+    titleBlock.forEach((i) => {
+      if (msg[i.prop]) {
+        maxLabel = Math.max(maxLabel, i.label.length);
+        maxProp = Math.max(maxProp, msg[i.prop].length);
+      }
+    });
+
+    let note = '| ' + ' '.repeat(maxLabel + 5) + ' | ' + ' '.repeat(maxProp) + ' |\n' +
+               '| ' + '-'.repeat(maxLabel + 5) + ' | ' + '-'.repeat(maxProp) + ' |\n';
+
+    titleBlock.forEach((i) => {
+      if (!i.optional || msg[i.prop]) {
+        note += '| **' + i.label + ':**' + ' '.repeat(maxLabel - i.label.length) +
+          ' | ' + msg[i.prop] + ' '.repeat(maxProp - msg[i.prop].length) + ' |\n';
+      }
+    });
 
     note += '\n' + msg.plainBody;
 

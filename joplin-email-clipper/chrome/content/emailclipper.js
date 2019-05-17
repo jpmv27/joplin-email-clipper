@@ -278,7 +278,7 @@ class JEC_EmailClipper {
     let maxLabel = 0;
     let maxProp = 0;
     titleBlock.forEach((i) => {
-      if (msg[i.prop]) {
+      if (!i.optional || msg[i.prop]) {
         maxLabel = Math.max(maxLabel, i.label.length);
         maxProp = Math.max(maxProp, msg[i.prop].length);
       }

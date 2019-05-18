@@ -14,7 +14,7 @@ class JEC_Joplin {
 
     for (let port = MINPORT; port <= MAXPORT; port++) {
       try {
-        let response = await this.request_({
+        const response = await this.request_({
           method: 'GET',
           url: 'http://127.0.0.1:' + port.toString() + '/ping'
         });
@@ -31,8 +31,8 @@ class JEC_Joplin {
     return false;
   }
 
-  async createNote(subject, body, notebookId) {
-    await this.request_({
+  async createNote(subject, body, notebookId, tagIds) {
+    const response = await this.request_({
       method: 'POST',
       url: 'http://127.0.0.1:' + this.port_.toString() + '/notes',
       headers: { 'Content-Type': 'application/json' },
@@ -40,6 +40,10 @@ class JEC_Joplin {
               ', "body": ' + JSON.stringify(body) +
               ', "parent_id": ' + JSON.stringify(notebookId) + ' }'
     });
+
+    const note = JSON.parse(response);
+
+    await this.tagNote_(note.id, tagIds);
   }
 
   get connected() {
@@ -47,12 +51,27 @@ class JEC_Joplin {
   }
 
   async getNotebooks() {
-    let folders = await this.request_({
+    const response = await this.request_({
       method: 'GET',
       url: 'http://127.0.0.1:' + this.port_.toString() + '/folders'
     });
 
-    return JSON.parse(folders);
+    return JSON.parse(response);
+  }
+
+  async getTags() {
+    const response = await this.request_({
+      method: 'GET',
+      url: 'http://127.0.0.1:' + this.port_.toString() + '/tags'
+    });
+
+    const rawTags = JSON.parse(response);
+
+    // Remove duplicate tags. Keep one first seen in the list.
+    const uniqueTags = rawTags.filter((element, index, array) =>
+      index === array.findIndex(e => e.title === element.title));
+
+    return uniqueTags.sort((a, b) => a.title.localeCompare(b.title));
   }
 
   get port() {
@@ -97,6 +116,17 @@ class JEC_Joplin {
       xhr.send(params);
     });
   }
+
+  async tagNote_(noteId, tagIds) {
+    for (const id of tagIds) {
+      await this.request_({
+        method: 'POST',
+        url: 'http://127.0.0.1:' + this.port_.toString() + '/tags/' + id + '/notes',
+        headers: { 'Content-Type': 'application/json' },
+        params: '{ "id": ' + JSON.stringify(noteId) + ' }'
+      });
+    }
+  }
 }
 
 class JEC_Popup {
@@ -105,9 +135,15 @@ class JEC_Popup {
   }
 
   set body(val) {
-    let b = this.window_.document.getElementById('joplin-preview-body');
+    const b = this.window_.document.getElementById('joplin-preview-body');
     b.value = val;
     this.window_.sizeToContent();
+  }
+
+  get checkedTagMenuItems_() {
+    const list = this.window_.document.getElementById('joplin-tag-list');
+
+    return Array.from(list.childNodes).filter(e => e.hasAttribute('checked'));
   }
 
   close() {
@@ -117,28 +153,27 @@ class JEC_Popup {
 
   getConfirmation() {
     return new Promise((resolve) => {
-      let c = this.window_.document.getElementById('joplin-confirm');
-      c.disabled = false;
+      const c = this.window_.document.getElementById('joplin-confirm');
       c.addEventListener('command', function() {
         resolve(true);
       }, { once: true });
+      c.disabled = false;
     });
   }
 
   get notebookId() {
-    let menu = this.window_.document.getElementById('joplin-notebook-menu');
+    const menu = this.window_.document.getElementById('joplin-notebook-menu');
     return menu.selectedItem.getAttribute('value');
   }
 
   set notebooks(val) {
-    // http://forums.mozillazine.org/viewtopic.php?t=1118715
-    let menu = this.window_.document.getElementById('joplin-notebook-menu');
-    let list = this.window_.document.getElementById('joplin-notebook-list');
+    const menu = this.window_.document.getElementById('joplin-notebook-menu');
+    const list = this.window_.document.getElementById('joplin-notebook-list');
 
-    val.forEach((i) => {
-      let menuItem = document.createElement('menuitem');
-      menuItem.setAttribute('label', i.title);
-      menuItem.setAttribute('value', i.id);
+    val.forEach((e) => {
+      const menuItem = document.createElement('menuitem');
+      menuItem.setAttribute('label', e.title);
+      menuItem.setAttribute('value', e.id);
       list.appendChild(menuItem);
     });
 
@@ -152,20 +187,51 @@ class JEC_Popup {
         'chrome://emailclipper/content/popup.xul',
         'joplin',
         'chrome,resizable,centerscreen,scrollbars');
-      this.window_.onload = function () {
+      this.window_.onload = () => {
         resolve(true);
       };
     });
   }
 
   set status(val) {
-    let s = this.window_.document.getElementById('joplin-status');
+    const s = this.window_.document.getElementById('joplin-status');
     s.value = val;
   }
 
   set subject(val) {
-    let s = this.window_.document.getElementById('joplin-preview-subject');
+    const s = this.window_.document.getElementById('joplin-preview-subject');
     s.value = val;
+  }
+
+  get tagIds() {
+    return this.checkedTagMenuItems_.map(e => e.getAttribute('value'));
+  }
+
+  set tags(val) {
+    const menu = this.window_.document.getElementById('joplin-tag-menu');
+    const list = this.window_.document.getElementById('joplin-tag-list');
+    const text = this.window_.document.getElementById('joplin-tags');
+
+    val.forEach((e) => {
+      const menuItem = document.createElement('menuitem');
+      menuItem.setAttribute('label', e.title);
+      menuItem.setAttribute('value', e.id);
+      menuItem.setAttribute('type', 'checkbox');
+      list.appendChild(menuItem);
+    });
+
+    menu.addEventListener('command', () => {
+      this.updateTagList_();
+    });
+
+    menu.disabled = false;
+    text.disabled = false;
+  }
+
+  updateTagList_() {
+    const text = this.window_.document.getElementById('joplin-tags');
+
+    text.value = this.checkedTagMenuItems_.map(e => e.getAttribute('label')).join(', ');
   }
 }
 
@@ -248,20 +314,20 @@ class JEC_EmailClipper {
   }
 
   flattenNotebookList_(list) {
-    let notebooks = [];
+    const notebooks = [];
 
     function helper(item, level) {
       notebooks.push({
-        'title': ' . '.repeat(level) + item.title,
-        'id': item.id
+        title: ' . '.repeat(level) + item.title,
+        id: item.id
       });
 
       if (item.children) {
-        item.children.forEach((i) => helper(i, level + 1));
+        item.children.forEach(e => helper(e, level + 1));
       }
     }
 
-    list.forEach((i) => helper(i, 0));
+    list.forEach(e => helper(e, 0));
 
     return notebooks;
   }
@@ -277,20 +343,20 @@ class JEC_EmailClipper {
     // Find maximum length of labels and properties
     let maxLabel = 0;
     let maxProp = 0;
-    titleBlock.forEach((i) => {
-      if (!i.optional || msg[i.prop]) {
-        maxLabel = Math.max(maxLabel, i.label.length);
-        maxProp = Math.max(maxProp, msg[i.prop].length);
+    titleBlock.forEach((e) => {
+      if (!e.optional || msg[e.prop]) {
+        maxLabel = Math.max(maxLabel, e.label.length);
+        maxProp = Math.max(maxProp, msg[e.prop].length);
       }
     });
 
     let note = '| ' + ' '.repeat(maxLabel + 5) + ' | ' + ' '.repeat(maxProp) + ' |\n' +
                '| ' + '-'.repeat(maxLabel + 5) + ' | ' + '-'.repeat(maxProp) + ' |\n';
 
-    titleBlock.forEach((i) => {
-      if (!i.optional || msg[i.prop]) {
-        note += '| **' + i.label + ':**' + ' '.repeat(maxLabel - i.label.length) +
-          ' | ' + msg[i.prop] + ' '.repeat(maxProp - msg[i.prop].length) + ' |\n';
+    titleBlock.forEach((e) => {
+      if (!e.optional || msg[e.prop]) {
+        note += '| **' + e.label + ':**' + ' '.repeat(maxLabel - e.label.length) +
+          ' | ' + msg[e.prop] + ' '.repeat(maxProp - msg[e.prop].length) + ' |\n';
       }
     });
 
@@ -302,21 +368,22 @@ class JEC_EmailClipper {
   async sendToJoplin() {
     await this.popup_.open();
 
-    let msg = this.tbird_.getCurrentMessage();
+    const msg = this.tbird_.getCurrentMessage();
 
     this.popup_.subject = msg.subject;
     this.popup_.body = 'Downloading...';
     await msg.download();
 
-    let note = this.messageToNote_(msg);
+    const note = this.messageToNote_(msg);
     this.popup_.body = note;
 
     await this.connectToJoplin_();
     this.popup_.notebooks = this.flattenNotebookList_(await this.joplin_.getNotebooks());
+    this.popup_.tags = await this.joplin_.getTags();
 
     await this.popup_.getConfirmation();
 
-    await this.joplin_.createNote(msg.subject, note, this.popup_.notebookId);
+    await this.joplin_.createNote(msg.subject, note, this.popup_.notebookId, this.popup_.tagIds);
 
     this.popup_.close();
   }
@@ -331,7 +398,7 @@ class JEC_EmailClipper {
 /* exported JEC_sendToJoplin */
 function JEC_sendToJoplin() {
 	console.info('sendToJoplin started');
-  let clipper = new JEC_EmailClipper();
+  const clipper = new JEC_EmailClipper();
   clipper.sendToJoplin()
     .then(() => { console.info('sendToJoplin done'); })
     .catch((error) => { console.error('sendToJoplin failed: ' + error.toString()) });

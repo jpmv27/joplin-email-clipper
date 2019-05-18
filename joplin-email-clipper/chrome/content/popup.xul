@@ -9,6 +9,13 @@
     <menupopup id="joplin-notebook-list">
     </menupopup>
   </menulist>
+  <hbox>
+    <button id="joplin-tag-menu" type="menu" label="Tags: " disabled="true">
+      <menupopup id="joplin-tag-list">
+      </menupopup>
+    </button>
+    <textbox id="joplin-tags" flex="1" readonly="true" disabled="true"/>
+  </hbox>
   <button id="joplin-confirm" label="Confirm" disabled="true" accesskey="c"/>
   <label value="Preview:"/>
   <textbox id="joplin-preview-subject" readonly="true"/>

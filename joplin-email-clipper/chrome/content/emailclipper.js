@@ -154,13 +154,25 @@ class JEC_Popup {
   }
 
   getConfirmation() {
-    return new Promise((resolve) => {
+    if (this.window_.closed) {
+      return Promise.resolve(false);
+    }
+
+    const confirm = new Promise((resolve) => {
       const c = this.window_.document.getElementById('joplin-confirm');
       c.addEventListener('command', function() {
         resolve(true);
       }, { once: true });
       c.disabled = false;
     });
+
+    const cancel = new Promise((resolve) => {
+      this.window_.addEventListener('unload', function() {
+        resolve(false);
+      }, {once: true });
+    });
+
+    return Promise.race([confirm, cancel]);
   }
 
   get notebookId() {
@@ -204,6 +216,14 @@ class JEC_Popup {
       this.window_.onload = () => {
         resolve(true);
       };
+    })
+    .then(() => {
+      const c = this.window_.document.getElementById('joplin-cancel');
+      c.addEventListener('command', () => {
+        this.close();
+      }, { once: true });
+
+      return true;
     });
   }
 
@@ -399,11 +419,15 @@ class JEC_EmailClipper {
     this.popup_.notebooks = this.flattenNotebookList_(await this.joplin_.getNotebooks());
     this.popup_.tags = await this.joplin_.getTags();
 
-    await this.popup_.getConfirmation();
+    if (!await this.popup_.getConfirmation()) {
+      return false;
+    }
 
     await this.joplin_.createNote(msg.subject, note, this.popup_.notebookId, this.popup_.tagIds);
 
     this.popup_.close();
+
+    return true;
   }
 
   async sleep_(ms) {
@@ -418,6 +442,15 @@ function JEC_sendToJoplin() {
 	console.info('sendToJoplin started');
   const clipper = new JEC_EmailClipper();
   clipper.sendToJoplin()
-    .then(() => { console.info('sendToJoplin done'); })
-    .catch((error) => { console.error('sendToJoplin failed: ' + error.toString()) });
+    .then((result) => {
+      if (result) {
+        console.info('sendToJoplin done');
+      }
+      else {
+        console.info('sendToJoplin cancelled');
+      }
+    })
+    .catch((error) => {
+      console.error('sendToJoplin failed: ' + error.toString())
+    });
 }

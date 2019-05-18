@@ -16,7 +16,10 @@
     </button>
     <textbox id="joplin-tags" flex="1" readonly="true" disabled="true"/>
   </hbox>
-  <button id="joplin-confirm" label="Confirm" disabled="true" accesskey="c"/>
+  <hbox pack="end">
+    <button id="joplin-cancel" label="Cancel"/>
+    <button id="joplin-confirm" label="Confirm" disabled="true" accesskey="c"/>
+  </hbox>
   <label value="Preview:"/>
   <textbox id="joplin-preview-subject" readonly="true"/>
   <textbox id="joplin-preview-body" flex="1" multiline="true" readonly="true"/>

@@ -3,6 +3,8 @@
 ChromeUtils.import("resource:///modules/jsmime.jsm");
 ChromeUtils.import("resource:///modules/gloda/mimemsg.js");
 
+let lastSelectedNotebookId;
+
 class JEC_Joplin {
   constructor() {
     this.port_ = -1;
@@ -169,15 +171,27 @@ class JEC_Popup {
   set notebooks(val) {
     const menu = this.window_.document.getElementById('joplin-notebook-menu');
     const list = this.window_.document.getElementById('joplin-notebook-list');
+    let selection = 0;
+    let i = 0;
 
     val.forEach((e) => {
       const menuItem = document.createElement('menuitem');
       menuItem.setAttribute('label', e.title);
       menuItem.setAttribute('value', e.id);
       list.appendChild(menuItem);
+
+      if (lastSelectedNotebookId && (lastSelectedNotebookId === e.id)) {
+        selection = i;
+      }
+
+      i++;
     });
 
-    menu.selectedIndex = 0;
+    menu.addEventListener('command', () => {
+      this.updateSelectedNotebook_();
+    });
+
+    menu.selectedIndex = selection;
     menu.disabled = false;
   }
 
@@ -226,6 +240,10 @@ class JEC_Popup {
 
     menu.disabled = false;
     text.disabled = false;
+  }
+
+  updateSelectedNotebook_() {
+    lastSelectedNotebookId = this.notebookId;
   }
 
   updateTagList_() {

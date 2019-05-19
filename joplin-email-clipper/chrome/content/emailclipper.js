@@ -5,6 +5,17 @@ ChromeUtils.import("resource:///modules/gloda/mimemsg.js");
 
 let lastSelectedNotebookId;
 
+class JEC_JoplinError {
+  constructor(status, statusText) {
+    this.status = status;
+    this.statusText = statusText;
+  }
+
+  toString() {
+    return 'Joplin error (' + this.status.toString() + '): ' + this.statusText;
+  }
+}
+
 class JEC_Joplin {
   constructor() {
     this.port_ = -1;
@@ -18,7 +29,8 @@ class JEC_Joplin {
       try {
         const response = await this.request_({
           method: 'GET',
-          url: 'http://127.0.0.1:' + port.toString() + '/ping'
+          url: 'http://127.0.0.1:' + port.toString() + '/ping',
+          timeout: 10000
         });
         if (response === 'JoplinClipperServer') {
           this.port_ = port;
@@ -40,7 +52,8 @@ class JEC_Joplin {
       headers: { 'Content-Type': 'application/json' },
       params: '{ "title": ' + JSON.stringify(subject) +
               ', "body": ' + JSON.stringify(body) +
-              ', "parent_id": ' + JSON.stringify(notebookId) + ' }'
+              ', "parent_id": ' + JSON.stringify(notebookId) + ' }',
+      timeout: 10000
     });
 
     const note = JSON.parse(response);
@@ -55,7 +68,8 @@ class JEC_Joplin {
   async getNotebooks() {
     const response = await this.request_({
       method: 'GET',
-      url: 'http://127.0.0.1:' + this.port_.toString() + '/folders'
+      url: 'http://127.0.0.1:' + this.port_.toString() + '/folders',
+      timeout: 10000
     });
 
     return JSON.parse(response);
@@ -64,7 +78,8 @@ class JEC_Joplin {
   async getTags() {
     const response = await this.request_({
       method: 'GET',
-      url: 'http://127.0.0.1:' + this.port_.toString() + '/tags'
+      url: 'http://127.0.0.1:' + this.port_.toString() + '/tags',
+      timeout: 10000
     });
 
     const rawTags = JSON.parse(response);
@@ -81,40 +96,46 @@ class JEC_Joplin {
   }
 
   request_(opts) {
-    // https://stackoverflow.com/questions/30008114/how-do-i-promisify-native-xhr
     return new Promise(function (resolve, reject) {
-      var xhr = new XMLHttpRequest();
+      const xhr = new XMLHttpRequest();
       xhr.open(opts.method, opts.url);
-      xhr.onload = function () {
-        if (this.status >= 200 && this.status < 300) {
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
           resolve(xhr.response);
         }
         else {
-          reject({
-            status: this.status,
-            statusText: xhr.statusText
-          });
+          reject(new JEC_JoplinError(xhr.status, xhr.statusText));
         }
       };
-      xhr.onerror = function () {
-        reject({
-          status: this.status,
-          statusText: xhr.statusText
-        });
+
+      xhr.onerror = () => {
+        reject(new JEC_JoplinError(xhr.status, xhr.statusText || 'XmlHttpRequest failed'));
       };
+
+      if (opts.timeout) {
+        xhr.timeout = opts.timeout;
+
+        xhr.ontimeout = () => {
+          reject(new JEC_JoplinError(504, 'XmlHttpRequest timed out'));
+        }
+      }
+
       if (opts.headers) {
-        Object.keys(opts.headers).forEach(function (key) {
+        Object.keys(opts.headers).forEach((key) => {
           xhr.setRequestHeader(key, opts.headers[key]);
         });
       }
-      var params = opts.params;
+
+      let params = opts.params;
       // We'll need to stringify if we've been given an object
       // If we have a string, this is skipped.
       if (params && typeof params === 'object') {
-        params = Object.keys(params).map(function (key) {
+        params = Object.keys(params).map((key) => {
           return encodeURIComponent(key) + '=' + encodeURIComponent(params[key]);
         }).join('&');
       }
+
       xhr.send(params);
     });
   }
@@ -125,7 +146,8 @@ class JEC_Joplin {
         method: 'POST',
         url: 'http://127.0.0.1:' + this.port_.toString() + '/tags/' + id + '/notes',
         headers: { 'Content-Type': 'application/json' },
-        params: '{ "id": ' + JSON.stringify(noteId) + ' }'
+        params: '{ "id": ' + JSON.stringify(noteId) + ' }',
+        timeout: 10000
       });
     }
   }

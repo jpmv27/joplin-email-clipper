@@ -164,6 +164,10 @@ class JEC_Popup {
     this.window_.sizeToContent();
   }
 
+  get cancelled() {
+    return !this.window_ || this.window_.closed;
+  }
+
   get checkedTagMenuItems_() {
     const list = this.window_.document.getElementById('joplin-tag-list');
 
@@ -176,7 +180,7 @@ class JEC_Popup {
   }
 
   getConfirmation() {
-    if (this.window_.closed) {
+    if (this.cancelled) {
       return Promise.resolve(false);
     }
 
@@ -362,15 +366,21 @@ class JEC_EmailClipper {
   }
 
   async connectToJoplin_() {
-    while (!this.joplin_.connected) {
-      this.popup_.status = 'Looking for service';
+    this.popup_.status = 'Looking for service';
+
+    while (!this.joplin_.connected && !this.popup_.cancelled) {
       if (!await this.joplin_.connect()) {
         await this.sleep_(1000);
       }
     }
 
-    this.popup_.status = 'Ready on port ' + this.joplin_.port.toString();
-    return true;
+    if (this.joplin_.connected) {
+      this.popup_.status = 'Ready on port ' + this.joplin_.port.toString();
+      return true;
+    }
+    else {
+      return false;
+    }
   }
 
   flattenNotebookList_(list) {
@@ -437,7 +447,10 @@ class JEC_EmailClipper {
     const note = this.messageToNote_(msg);
     this.popup_.body = note;
 
-    await this.connectToJoplin_();
+    if (!await this.connectToJoplin_()) {
+      return false;
+    }
+
     this.popup_.notebooks = this.flattenNotebookList_(await this.joplin_.getNotebooks());
     this.popup_.tags = await this.joplin_.getTags();
 

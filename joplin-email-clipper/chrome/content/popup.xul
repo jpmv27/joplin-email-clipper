@@ -1,28 +1,28 @@
 <?xml version="1.0"?>
 <?xml-stylesheet href="chrome://global/skin/" type="text/css"?>
-<window id="joplin-dialog-window"
+<window id="jec-dialog-window"
   title="Joplin Email Clipper"
   orient="vertical"
   xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
-  <label value="Destination notebook:" control="joplin-notebook-menu"/>
-  <menulist id="joplin-notebook-menu" disabled="true">
-    <menupopup id="joplin-notebook-list">
+  <label value="Destination notebook:" control="jec-notebook-menu"/>
+  <menulist id="jec-notebook-menu" disabled="true">
+    <menupopup id="jec-notebook-list">
     </menupopup>
   </menulist>
   <hbox>
-    <button id="joplin-tag-menu" type="menu" label="Tags: " disabled="true">
-      <menupopup id="joplin-tag-list">
+    <button id="jec-tag-menu" type="menu" label="Tags: " disabled="true">
+      <menupopup id="jec-tag-list">
       </menupopup>
     </button>
-    <textbox id="joplin-tags" flex="1" readonly="true" disabled="true"/>
+    <textbox id="jec-tags" flex="1" readonly="true" disabled="true"/>
   </hbox>
   <hbox pack="end">
-    <button id="joplin-cancel" label="Cancel"/>
-    <button id="joplin-confirm" label="Confirm" disabled="true" accesskey="c"/>
+    <button id="jec-cancel" label="Cancel"/>
+    <button id="jec-confirm" label="Confirm" disabled="true" accesskey="c"/>
   </hbox>
   <label value="Preview:"/>
-  <textbox id="joplin-preview-subject" readonly="true"/>
-  <textbox id="joplin-preview-body" flex="1" multiline="true" readonly="true"/>
-  <label value="Service status:" control="joplin-status"/>
-  <textbox id="joplin-status" readonly="true" value="Pending"/>
+  <textbox id="jec-preview-subject" readonly="true"/>
+  <textbox id="jec-preview-body" flex="1" multiline="true" readonly="true"/>
+  <label value="Service status:" control="jec-status"/>
+  <textbox id="jec-status" readonly="true" value="Pending"/>
 </window>

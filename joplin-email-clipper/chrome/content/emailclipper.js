@@ -159,7 +159,7 @@ class JEC_Popup {
   }
 
   set body(val) {
-    const b = this.window_.document.getElementById('joplin-preview-body');
+    const b = this.window_.document.getElementById('jec-preview-body');
     b.value = val;
     this.window_.sizeToContent();
   }
@@ -169,7 +169,7 @@ class JEC_Popup {
   }
 
   get checkedTagMenuItems_() {
-    const list = this.window_.document.getElementById('joplin-tag-list');
+    const list = this.window_.document.getElementById('jec-tag-list');
 
     return Array.from(list.childNodes).filter(e => e.hasAttribute('checked'));
   }
@@ -185,7 +185,7 @@ class JEC_Popup {
     }
 
     const confirm = new Promise((resolve) => {
-      const c = this.window_.document.getElementById('joplin-confirm');
+      const c = this.window_.document.getElementById('jec-confirm');
       c.addEventListener('command', function() {
         resolve(true);
       }, { once: true });
@@ -202,13 +202,13 @@ class JEC_Popup {
   }
 
   get notebookId() {
-    const menu = this.window_.document.getElementById('joplin-notebook-menu');
+    const menu = this.window_.document.getElementById('jec-notebook-menu');
     return menu.selectedItem.getAttribute('value');
   }
 
   set notebooks(val) {
-    const menu = this.window_.document.getElementById('joplin-notebook-menu');
-    const list = this.window_.document.getElementById('joplin-notebook-list');
+    const menu = this.window_.document.getElementById('jec-notebook-menu');
+    const list = this.window_.document.getElementById('jec-notebook-list');
     let selection = 0;
     let i = 0;
 
@@ -244,7 +244,7 @@ class JEC_Popup {
       };
     })
     .then(() => {
-      const c = this.window_.document.getElementById('joplin-cancel');
+      const c = this.window_.document.getElementById('jec-cancel');
       c.addEventListener('command', () => {
         this.close();
       }, { once: true });
@@ -254,12 +254,12 @@ class JEC_Popup {
   }
 
   set status(val) {
-    const s = this.window_.document.getElementById('joplin-status');
+    const s = this.window_.document.getElementById('jec-status');
     s.value = val;
   }
 
   set subject(val) {
-    const s = this.window_.document.getElementById('joplin-preview-subject');
+    const s = this.window_.document.getElementById('jec-preview-subject');
     s.value = val;
   }
 
@@ -268,9 +268,9 @@ class JEC_Popup {
   }
 
   set tags(val) {
-    const menu = this.window_.document.getElementById('joplin-tag-menu');
-    const list = this.window_.document.getElementById('joplin-tag-list');
-    const text = this.window_.document.getElementById('joplin-tags');
+    const menu = this.window_.document.getElementById('jec-tag-menu');
+    const list = this.window_.document.getElementById('jec-tag-list');
+    const text = this.window_.document.getElementById('jec-tags');
 
     val.forEach((e) => {
       const menuItem = document.createElement('menuitem');
@@ -293,7 +293,7 @@ class JEC_Popup {
   }
 
   updateTagList_() {
-    const text = this.window_.document.getElementById('joplin-tags');
+    const text = this.window_.document.getElementById('jec-tags');
 
     text.value = this.checkedTagMenuItems_.map(e => e.getAttribute('label')).join(', ');
   }

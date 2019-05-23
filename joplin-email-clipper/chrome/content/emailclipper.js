@@ -388,6 +388,10 @@ class JEC_Message {
     return this.message_.allUserAttachments.map(att => new JEC_Attachment(att, this.header_));
   }
 
+  get bcc() {
+    return jsmime.headerparser.decodeRFC2047Words(this.header_.bccList);
+  }
+
   get cc() {
     return jsmime.headerparser.decodeRFC2047Words(this.header_.ccList);
   }
@@ -502,7 +506,8 @@ class JEC_EmailClipper {
       { prop: 'from',    label: 'From',    optional: false },
       { prop: 'subject', label: 'Subject', optional: false },
       { prop: 'to',      label: 'To',      optional: false },
-      { prop: 'cc',      label: 'Cc',      optional: true  }
+      { prop: 'cc',      label: 'Cc',      optional: true  },
+      { prop: 'bcc',     label: 'Bcc',     optional: true  }
     ];
 
     // Find maximum length of labels and properties

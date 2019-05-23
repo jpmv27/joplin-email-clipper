@@ -9,13 +9,17 @@
     <menupopup id="jec-notebook-list">
     </menupopup>
   </menulist>
-  <hbox>
-    <button id="jec-tag-menu" type="menu" label="Tags: " disabled="true">
+  <hbox align="center">
+    <label value="Tags:"/>
+    <textbox id="jec-tags" flex="1" readonly="true" disabled="true"/>
+    <button id="jec-tag-menu" type="menu" label="Tag/Untag" disabled="true">
       <menupopup id="jec-tag-list">
       </menupopup>
     </button>
-    <textbox id="jec-tags" flex="1" readonly="true" disabled="true"/>
   </hbox>
+  <groupbox id="jec-attachments" hidden="true">
+    <label value="Attachments to include:"/>
+  </groupbox>
   <hbox pack="end">
     <button id="jec-cancel" label="Cancel"/>
     <button id="jec-confirm" label="Confirm" disabled="true" accesskey="c"/>

@@ -1,5 +1,6 @@
 'use strict';
 
+ChromeUtils.import("resource://gre/modules/FileUtils.jsm");
 ChromeUtils.import("resource:///modules/jsmime.jsm");
 ChromeUtils.import("resource:///modules/gloda/mimemsg.js");
 
@@ -25,15 +26,15 @@ class JEC_Joplin {
     const MINPORT = 41184;
     const MAXPORT = MINPORT + 10;
 
-    for (let port = MINPORT; port <= MAXPORT; port++) {
+    for (this.port_ = MINPORT; this.port_ <= MAXPORT; this.port_++) {
       try {
         const response = await this.request_({
           method: 'GET',
-          url: 'http://127.0.0.1:' + port.toString() + '/ping',
+          url: this.url_('ping'),
           timeout: 10000
         });
+
         if (response === 'JoplinClipperServer') {
-          this.port_ = port;
           return true;
         }
       }
@@ -45,10 +46,19 @@ class JEC_Joplin {
     return false;
   }
 
-  async createNote(subject, body, notebookId, tagIds) {
+  async createNote(subject, body, notebookId, tagIds, attachments) {
+    if (attachments.length !== 0) {
+      body += '\n\n';
+
+      for (const att of attachments) {
+        const res = await this.createResource_(await att.asFile(), 'Email attachment', att.fileName);
+        body += '[' + att.fileName + '](:/' + res.id + ')\n';
+      }
+    }
+
     const response = await this.request_({
       method: 'POST',
-      url: 'http://127.0.0.1:' + this.port_.toString() + '/notes',
+      url: this.url_('notes'),
       headers: { 'Content-Type': 'application/json' },
       params: '{ "title": ' + JSON.stringify(subject) +
               ', "body": ' + JSON.stringify(body) +
@@ -61,6 +71,22 @@ class JEC_Joplin {
     await this.tagNote_(note.id, tagIds);
   }
 
+  async createResource_(data, title, fileName) {
+    const formData = new FormData();
+    formData.append("data", data);
+    formData.append("props", '{ "title": ' + JSON.stringify(title) +
+                             ', "filename": ' + JSON.stringify(fileName) + ' }');
+
+    const response = await this.request_({
+      method: 'POST',
+      url: this.url_('resources'),
+      params: formData,
+      timeout: 10000
+    });
+
+    return JSON.parse(response);
+  }
+
   get connected() {
     return (this.port_ !== -1);
   }
@@ -68,7 +94,7 @@ class JEC_Joplin {
   async getNotebooks() {
     const response = await this.request_({
       method: 'GET',
-      url: 'http://127.0.0.1:' + this.port_.toString() + '/folders',
+      url: this.url_('folders'),
       timeout: 10000
     });
 
@@ -78,7 +104,7 @@ class JEC_Joplin {
   async getTags() {
     const response = await this.request_({
       method: 'GET',
-      url: 'http://127.0.0.1:' + this.port_.toString() + '/tags',
+      url: this.url_('tags'),
       timeout: 10000
     });
 
@@ -95,7 +121,7 @@ class JEC_Joplin {
     return this.port_;
   }
 
-  request_(opts) {
+  async request_(opts) {
     return new Promise(function (resolve, reject) {
       const xhr = new XMLHttpRequest();
       xhr.open(opts.method, opts.url);
@@ -127,16 +153,7 @@ class JEC_Joplin {
         });
       }
 
-      let params = opts.params;
-      // We'll need to stringify if we've been given an object
-      // If we have a string, this is skipped.
-      if (params && typeof params === 'object') {
-        params = Object.keys(params).map((key) => {
-          return encodeURIComponent(key) + '=' + encodeURIComponent(params[key]);
-        }).join('&');
-      }
-
-      xhr.send(params);
+      xhr.send(opts.params);
     });
   }
 
@@ -144,18 +161,34 @@ class JEC_Joplin {
     for (const id of tagIds) {
       await this.request_({
         method: 'POST',
-        url: 'http://127.0.0.1:' + this.port_.toString() + '/tags/' + id + '/notes',
+        url: this.url_('tags/' + id + '/notes'),
         headers: { 'Content-Type': 'application/json' },
         params: '{ "id": ' + JSON.stringify(noteId) + ' }',
         timeout: 10000
       });
     }
   }
+
+  url_(endpoint) {
+    return 'http://127.0.0.1:' + this.port_.toString() + '/' + endpoint;
+  }
 }
 
 class JEC_Popup {
   constructor() {
     this.window_ = null;
+  }
+
+  set attachments(val) {
+    const a = this.window_.document.getElementById('jec-attachments');
+    for (let i = 0; i < val.length; i++) {
+      const checkBox = document.createElement('checkbox');
+      checkBox.setAttribute('label', val[i].fileName);
+      checkBox.setAttribute('value', i.toString());
+      checkBox.setAttribute('checked', 'true');
+      a.appendChild(checkBox);
+      a.hidden = false;
+    }
   }
 
   set body(val) {
@@ -166,6 +199,12 @@ class JEC_Popup {
 
   get cancelled() {
     return !this.window_ || this.window_.closed;
+  }
+
+  get checkedAttachments_() {
+    const list = this.window_.document.getElementById('jec-attachments');
+
+    return Array.from(list.childNodes).filter(e => e.hasAttribute('checked'));
   }
 
   get checkedTagMenuItems_() {
@@ -233,7 +272,7 @@ class JEC_Popup {
     menu.disabled = false;
   }
 
-  open() {
+  async open() {
     return new Promise((resolve) => {
       this.window_ = window.open(
         'chrome://emailclipper/content/popup.xul',
@@ -251,6 +290,10 @@ class JEC_Popup {
 
       return true;
     });
+  }
+
+  get selectedAttachmentIndices() {
+    return this.checkedAttachments_.map(e => e.getAttribute('value'));
   }
 
   set status(val) {
@@ -299,21 +342,57 @@ class JEC_Popup {
   }
 }
 
+class JEC_Attachment {
+  constructor(attachment, header) {
+    this.attachment_ = attachment;
+    this.header_ = header;
+    this.file_ = null;
+  }
+
+  async asFile() {
+    return await File.createFromNsIFile(this.file_);
+  }
+
+  async downloadToFolder(folder) {
+    return new Promise((resolve) => {
+      this.file_ = folder.clone();
+      this.file_.append(this.attachment_.name);
+      this.file_.createUnique(Components.interfaces.nsIFile.NORMAL_FILE_TYPE, FileUtils.PERMS_FILE);
+
+      messenger.saveAttachmentToFile(
+        this.file_,
+        this.attachment_.url,
+        this.header_.folder.getUriForMsg(this.header_),
+        this.attachment_.contentType,
+        {
+          OnStartRunningUrl: () => {},
+          OnStopRunningUrl: () => {
+            resolve(true);
+          }
+        });
+    });
+  }
+
+  get fileName() {
+    return this.attachment_.name;
+  }
+}
+
 class JEC_Message {
   constructor(header) {
     this.header_ = header;
     this.message_ = null;
   }
 
-  get attachmentNames() {
-    return this.message_.allUserAttachments.map(att => att.name);
+  get attachments() {
+    return this.message_.allUserAttachments.map(att => new JEC_Attachment(att, this.header_));
   }
 
   get cc() {
     return jsmime.headerparser.decodeRFC2047Words(this.header_.ccList);
   }
 
-  download() {
+  async download() {
     return new Promise((resolve, reject) => {
       MsgHdrToMimeMessage(
         this.header_,
@@ -353,6 +432,16 @@ class JEC_Thunderbird {
   constructor() {
   }
 
+  createTemporaryFolder(name) {
+    const folder = FileUtils.getFile("TmpD", [name]);
+    folder.createUnique(Components.interfaces.nsIFile.DIRECTORY_TYPE, FileUtils.PERMS_DIRECTORY);
+    return folder;
+  }
+
+  deleteTemporaryFolder(folder) {
+    folder.remove(true /* recursive */);
+  }
+
   getCurrentMessage() {
     return new JEC_Message(gMessageDisplay.displayedMessage);
   }
@@ -380,6 +469,12 @@ class JEC_EmailClipper {
     }
     else {
       return false;
+    }
+  }
+
+  async downloadAttachments_(attachments, folder) {
+    for (const att of attachments) {
+      await att.downloadToFolder(folder);
     }
   }
 
@@ -436,6 +531,8 @@ class JEC_EmailClipper {
   }
 
   async sendToJoplin() {
+    let folder = null;
+
     await this.popup_.open();
 
     const msg = this.tbird_.getCurrentMessage();
@@ -446,6 +543,9 @@ class JEC_EmailClipper {
 
     const note = this.messageToNote_(msg);
     this.popup_.body = note;
+
+    let attachments = msg.attachments;
+    this.popup_.attachments = attachments;
 
     if (!await this.connectToJoplin_()) {
       return false;
@@ -458,7 +558,25 @@ class JEC_EmailClipper {
       return false;
     }
 
-    await this.joplin_.createNote(msg.subject, note, this.popup_.notebookId, this.popup_.tagIds);
+    let selectedAttachments = this.popup_.selectedAttachmentIndices.map(i => attachments[i]);
+    if (selectedAttachments.length !== 0) {
+      folder = this.tbird_.createTemporaryFolder('jec-attachments');
+      await this.downloadAttachments_(selectedAttachments, folder);
+    }
+
+    await this.joplin_.createNote(
+      msg.subject,
+      note,
+      this.popup_.notebookId,
+      this.popup_.tagIds,
+      selectedAttachments);
+
+    attachments = null;
+    if (selectedAttachments.length !== 0) {
+      selectedAttachments = null;
+      this.tbird_.deleteTemporaryFolder(folder);
+      folder = null;
+    }
 
     this.popup_.close();
 

@@ -6,9 +6,12 @@
   "extends": "eslint:recommended",
   "globals": {
     "ChromeUtils": "readwrite",
-    "gMessageDisplay": "writable",
+    "Components": "readwrite",
+    "FileUtils": "readwrite",
+    "gMessageDisplay": "readwrite",
     "jsmime" : "readwrite",
-    "MsgHdrToMimeMessage": "writable"
+    "messenger" : "readwrite",
+    "MsgHdrToMimeMessage": "readwrite"
   },
   "parserOptions": {
     "ecmaVersion": 2018

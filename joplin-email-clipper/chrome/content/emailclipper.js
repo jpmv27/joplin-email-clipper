@@ -46,21 +46,22 @@ class JEC_Joplin {
     return false;
   }
 
-  async createNote(subject, body, notebookId, tagIds, attachments) {
-    if (attachments.length !== 0) {
-      body += '\n\n';
-
-      for (const att of attachments) {
-        const res = await this.createResource_(await att.asFile(), 'Email attachment', att.fileName);
-        body += '[' + att.fileName + '](:/' + res.id + ')\n';
-      }
+  async createNote(message, notebookId, tagIds, attachments) {
+    const attData = {};
+    for (const att of attachments) {
+      attData.push({
+        attachment: att,
+        resource: await this.createResource_(await att.asFile(), 'Email attachment', att.fileName)
+      });
     }
+
+    const body = this.formatBody_(message, attData);
 
     const response = await this.request_({
       method: 'POST',
       url: this.url_('notes'),
       headers: { 'Content-Type': 'application/json' },
-      params: '{ "title": ' + JSON.stringify(subject) +
+      params: '{ "title": ' + JSON.stringify(message.subject) +
               ', "body": ' + JSON.stringify(body) +
               ', "parent_id": ' + JSON.stringify(notebookId) + ' }',
       timeout: 10000
@@ -89,6 +90,48 @@ class JEC_Joplin {
 
   get connected() {
     return (this.port_ !== -1);
+  }
+
+  formatBody_(message, attData) {
+    const titleBlock = [
+      { prop: 'from',    label: 'From',    optional: false },
+      { prop: 'subject', label: 'Subject', optional: false },
+      { prop: 'to',      label: 'To',      optional: false },
+      { prop: 'cc',      label: 'Cc',      optional: true  },
+      { prop: 'bcc',     label: 'Bcc',     optional: true  }
+    ];
+
+    // Find maximum length of labels and properties
+    let maxLabel = 0;
+    let maxProp = 0;
+    titleBlock.forEach((e) => {
+      if (!e.optional || message[e.prop]) {
+        maxLabel = Math.max(maxLabel, e.label.length);
+        maxProp = Math.max(maxProp, message[e.prop].length);
+      }
+    });
+
+    let body = '| ' + ' '.repeat(maxLabel + 5) + ' | ' + ' '.repeat(maxProp) + ' |\n' +
+               '| ' + '-'.repeat(maxLabel + 5) + ' | ' + '-'.repeat(maxProp) + ' |\n';
+
+    titleBlock.forEach((e) => {
+      if (!e.optional || message[e.prop]) {
+        body += '| **' + e.label + ':**' + ' '.repeat(maxLabel - e.label.length) +
+          ' | ' + message[e.prop] + ' '.repeat(maxProp - message[e.prop].length) + ' |\n';
+      }
+    });
+
+    body += '\n' + message.plainBody;
+
+    if (attData.length !== 0) {
+      body += '\n\n';
+
+      attData.forEach((att) => {
+        body += '[' + att.attachment.fileName + '](:/' + att.resource.id + ')\n';
+      });
+    }
+
+    return body;
   }
 
   async getNotebooks() {
@@ -189,12 +232,6 @@ class JEC_Popup {
       a.appendChild(checkBox);
       a.hidden = false;
     }
-  }
-
-  set body(val) {
-    const b = this.window_.document.getElementById('jec-preview-body');
-    b.value = val;
-    this.window_.sizeToContent();
   }
 
   get cancelled() {
@@ -298,11 +335,6 @@ class JEC_Popup {
 
   set status(val) {
     const s = this.window_.document.getElementById('jec-status');
-    s.value = val;
-  }
-
-  set subject(val) {
-    const s = this.window_.document.getElementById('jec-preview-subject');
     s.value = val;
   }
 
@@ -501,53 +533,13 @@ class JEC_EmailClipper {
     return notebooks;
   }
 
-  messageToNote_(msg) {
-    const titleBlock = [
-      { prop: 'from',    label: 'From',    optional: false },
-      { prop: 'subject', label: 'Subject', optional: false },
-      { prop: 'to',      label: 'To',      optional: false },
-      { prop: 'cc',      label: 'Cc',      optional: true  },
-      { prop: 'bcc',     label: 'Bcc',     optional: true  }
-    ];
-
-    // Find maximum length of labels and properties
-    let maxLabel = 0;
-    let maxProp = 0;
-    titleBlock.forEach((e) => {
-      if (!e.optional || msg[e.prop]) {
-        maxLabel = Math.max(maxLabel, e.label.length);
-        maxProp = Math.max(maxProp, msg[e.prop].length);
-      }
-    });
-
-    let note = '| ' + ' '.repeat(maxLabel + 5) + ' | ' + ' '.repeat(maxProp) + ' |\n' +
-               '| ' + '-'.repeat(maxLabel + 5) + ' | ' + '-'.repeat(maxProp) + ' |\n';
-
-    titleBlock.forEach((e) => {
-      if (!e.optional || msg[e.prop]) {
-        note += '| **' + e.label + ':**' + ' '.repeat(maxLabel - e.label.length) +
-          ' | ' + msg[e.prop] + ' '.repeat(maxProp - msg[e.prop].length) + ' |\n';
-      }
-    });
-
-    note += '\n' + msg.plainBody;
-
-    return note;
-  }
-
   async sendToJoplin() {
     let folder = null;
 
     await this.popup_.open();
 
     const msg = this.tbird_.getCurrentMessage();
-
-    this.popup_.subject = msg.subject;
-    this.popup_.body = 'Downloading...';
     await msg.download();
-
-    const note = this.messageToNote_(msg);
-    this.popup_.body = note;
 
     let attachments = msg.attachments;
     this.popup_.attachments = attachments;
@@ -570,8 +562,7 @@ class JEC_EmailClipper {
     }
 
     await this.joplin_.createNote(
-      msg.subject,
-      note,
+      msg,
       this.popup_.notebookId,
       this.popup_.tagIds,
       selectedAttachments);

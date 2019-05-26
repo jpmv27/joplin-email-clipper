@@ -24,9 +24,6 @@
     <button id="jec-cancel" label="Cancel"/>
     <button id="jec-confirm" label="Confirm" disabled="true" accesskey="c"/>
   </hbox>
-  <label value="Preview:"/>
-  <textbox id="jec-preview-subject" readonly="true"/>
-  <textbox id="jec-preview-body" flex="1" multiline="true" readonly="true"/>
   <label value="Service status:" control="jec-status"/>
   <textbox id="jec-status" readonly="true" value="Pending"/>
 </window>

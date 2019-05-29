@@ -46,8 +46,8 @@ class JEC_Joplin {
     return false;
   }
 
-  async createNote(message, notebookId, tagIds, attachments) {
-    const attData = {};
+  async createNote(message, notebookId, tagTitles, attachments) {
+    const attData = [];
     for (const att of attachments) {
       attData.push({
         attachment: att,
@@ -57,19 +57,16 @@ class JEC_Joplin {
 
     const body = this.formatBody_(message, attData);
 
-    const response = await this.request_({
+    await this.request_({
       method: 'POST',
       url: this.url_('notes'),
       headers: { 'Content-Type': 'application/json' },
       params: '{ "title": ' + JSON.stringify(message.subject) +
               ', "body": ' + JSON.stringify(body) +
-              ', "parent_id": ' + JSON.stringify(notebookId) + ' }',
+              ', "parent_id": ' + JSON.stringify(notebookId) +
+              ', "tags": ' + JSON.stringify(tagTitles.join(',')) + ' }',
       timeout: 10000
     });
-
-    const note = JSON.parse(response);
-
-    await this.tagNote_(note.id, tagIds);
   }
 
   async createResource_(data, title, fileName) {
@@ -200,18 +197,6 @@ class JEC_Joplin {
     });
   }
 
-  async tagNote_(noteId, tagIds) {
-    for (const id of tagIds) {
-      await this.request_({
-        method: 'POST',
-        url: this.url_('tags/' + id + '/notes'),
-        headers: { 'Content-Type': 'application/json' },
-        params: '{ "id": ' + JSON.stringify(noteId) + ' }',
-        timeout: 10000
-      });
-    }
-  }
-
   url_(endpoint) {
     return 'http://127.0.0.1:' + this.port_.toString() + '/' + endpoint;
   }
@@ -222,30 +207,73 @@ class JEC_Popup {
     this.window_ = null;
   }
 
-  set attachments(val) {
-    const a = this.window_.document.getElementById('jec-attachments');
-    for (let i = 0; i < val.length; i++) {
-      const checkBox = document.createElement('checkbox');
-      checkBox.setAttribute('label', val[i].fileName);
-      checkBox.setAttribute('value', i.toString());
-      checkBox.setAttribute('checked', 'true');
-      a.appendChild(checkBox);
-      a.hidden = false;
+  addManualTagsToList_() {
+    const text = this.window_.document.getElementById('jec-tags');
+
+    text.value.split(',').forEach((t) => {
+      const title = t.trim();
+      if (title) {
+        this.addTagToList_(title, '');
+      }
+    });
+
+    text.value = '';
+  }
+
+  addSelectedTagsToList_() {
+    const list = this.window_.document.getElementById('jec-tag-list');
+    let selected = false;
+
+    Array.from(list.childNodes).filter(e => e.getAttribute('selected')).forEach((e) => {
+      this.addTagToList_(e.getAttribute('label'), e.getAttribute('value'));
+      selected = true;
+    });
+
+    // clearSelection generates a 'selected' event
+    // so we need to avoid infinite recursion
+    if (selected) {
+      list.clearSelection();
     }
   }
 
-  get cancelled() {
-    return !this.window_ || this.window_.closed;
+  addTagToList_(title, id) {
+    const text = this.window_.document.getElementById('jec-tags');
+
+    if (!this.tagIsInList_(title)) {
+      const button = document.createElement('button');
+      button.setAttribute('label', title);
+      button.setAttribute('value', id);
+      button.setAttribute('image', 'chrome://emailclipper/content/red_x_icon.png');
+
+      button.addEventListener('command', function () {
+        // 'this' is bound to button element
+        this.parentElement.removeChild(this);
+      });
+
+      text.appendChild(button);
+    }
   }
 
-  get checkedAttachments_() {
+  set attachments(val) {
+    const a = this.window_.document.getElementById('jec-attachments');
+    if (val.length !== 0) {
+      for (let i = 0; i < val.length; i++) {
+        const checkBox = document.createElement('checkbox');
+        checkBox.setAttribute('label', val[i].fileName);
+        checkBox.setAttribute('value', i.toString());
+        checkBox.setAttribute('checked', 'true');
+        a.appendChild(checkBox);
+      }
+    }
+    else {
+      const label = document.createElement('label');
+      label.setAttribute('value', 'None');
+      a.appendChild(label);
+    }
+  }
+
+  get checkedAttachmentElements_() {
     const list = this.window_.document.getElementById('jec-attachments');
-
-    return Array.from(list.childNodes).filter(e => e.hasAttribute('checked'));
-  }
-
-  get checkedTagMenuItems_() {
-    const list = this.window_.document.getElementById('jec-tag-list');
 
     return Array.from(list.childNodes).filter(e => e.hasAttribute('checked'));
   }
@@ -256,7 +284,7 @@ class JEC_Popup {
   }
 
   getConfirmation() {
-    if (this.cancelled) {
+    if (this.isCancelled) {
       return Promise.resolve(false);
     }
 
@@ -277,9 +305,8 @@ class JEC_Popup {
     return Promise.race([confirm, cancel]);
   }
 
-  get notebookId() {
-    const menu = this.window_.document.getElementById('jec-notebook-menu');
-    return menu.selectedItem.getAttribute('value');
+  get isCancelled() {
+    return !this.window_ || this.window_.closed;
   }
 
   set notebooks(val) {
@@ -330,7 +357,18 @@ class JEC_Popup {
   }
 
   get selectedAttachmentIndices() {
-    return this.checkedAttachments_.map(e => e.getAttribute('value'));
+    return this.checkedAttachmentElements_.map(e => e.getAttribute('value'));
+  }
+
+  get selectedNotebookId() {
+    const menu = this.window_.document.getElementById('jec-notebook-menu');
+    return menu.selectedItem.getAttribute('value');
+  }
+
+  get selectedTagTitles() {
+    const text = this.window_.document.getElementById('jec-tags');
+
+    return Array.from(text.childNodes).map(e => e.getAttribute('label'));
   }
 
   set status(val) {
@@ -338,39 +376,39 @@ class JEC_Popup {
     s.value = val;
   }
 
-  get tagIds() {
-    return this.checkedTagMenuItems_.map(e => e.getAttribute('value'));
+  tagIsInList_(title) {
+    const text = this.window_.document.getElementById('jec-tags');
+
+    return Array.from(text.childNodes).reduce(
+      (t, e) => t || (e.getAttribute('label') === title),
+      false);
   }
 
   set tags(val) {
-    const menu = this.window_.document.getElementById('jec-tag-menu');
     const list = this.window_.document.getElementById('jec-tag-list');
     const text = this.window_.document.getElementById('jec-tags');
 
     val.forEach((e) => {
-      const menuItem = document.createElement('menuitem');
-      menuItem.setAttribute('label', e.title);
-      menuItem.setAttribute('value', e.id);
-      menuItem.setAttribute('type', 'checkbox');
-      list.appendChild(menuItem);
+      const listItem = document.createElement('listitem');
+      listItem.setAttribute('label', e.title);
+      listItem.setAttribute('value', e.id);
+      list.appendChild(listItem);
     });
 
-    menu.addEventListener('command', () => {
-      this.updateTagList_();
+    list.addEventListener('select', () => {
+      this.addSelectedTagsToList_();
     });
 
-    menu.disabled = false;
+    text.addEventListener('change', () => {
+      this.addManualTagsToList_();
+    });
+
     text.disabled = false;
+    list.disabled = false;
   }
 
   updateSelectedNotebook_() {
-    lastSelectedNotebookId = this.notebookId;
-  }
-
-  updateTagList_() {
-    const text = this.window_.document.getElementById('jec-tags');
-
-    text.value = this.checkedTagMenuItems_.map(e => e.getAttribute('label')).join(', ');
+    lastSelectedNotebookId = this.selectedNotebookId;
   }
 }
 
@@ -493,7 +531,7 @@ class JEC_EmailClipper {
   async connectToJoplin_() {
     this.popup_.status = 'Looking for service';
 
-    while (!this.joplin_.connected && !this.popup_.cancelled) {
+    while (!this.joplin_.connected && !this.popup_.isCancelled) {
       if (!await this.joplin_.connect()) {
         await this.sleep_(1000);
       }
@@ -563,8 +601,8 @@ class JEC_EmailClipper {
 
     await this.joplin_.createNote(
       msg,
-      this.popup_.notebookId,
-      this.popup_.tagIds,
+      this.popup_.selectedNotebookId,
+      this.popup_.selectedTagTitles,
       selectedAttachments);
 
     attachments = null;

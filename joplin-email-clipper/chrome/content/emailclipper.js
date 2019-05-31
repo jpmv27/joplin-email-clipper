@@ -91,6 +91,7 @@ class JEC_Joplin {
 
   formatBody_(message, attData) {
     const titleBlock = [
+      { prop: 'date',    label: 'Date',    optional: false },
       { prop: 'from',    label: 'From',    optional: false },
       { prop: 'subject', label: 'Subject', optional: false },
       { prop: 'to',      label: 'To',      optional: false },
@@ -464,6 +465,11 @@ class JEC_Message {
 
   get cc() {
     return jsmime.headerparser.decodeRFC2047Words(this.header_.ccList);
+  }
+
+  get date() {
+    const d = new Date(this.header_.dateInSeconds * 1000);
+    return d.toLocaleString();
   }
 
   async download() {

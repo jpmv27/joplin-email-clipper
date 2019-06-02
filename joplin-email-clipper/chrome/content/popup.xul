@@ -3,6 +3,7 @@
 <window id="jec-dialog-window"
   title="Joplin Email Clipper"
   orient="vertical"
+  persist="width height"
   xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
   <groupbox>

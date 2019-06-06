@@ -6,18 +6,31 @@
   persist="width height"
   xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
-  <groupbox>
+  <groupbox flex="1">
     <caption label="Notebook"/>
-    <menulist id="jec-notebook-menu" disabled="true">
-      <menupopup id="jec-notebook-list">
-      </menupopup>
-    </menulist>
+    <textbox id="jec-notebooks-search" type="search" placeholder="Pick a notebook from the lists or enter a search string" disabled="true"/>
+    <deck flex="1">
+      <vbox flex="1">
+        <label value="Recent picks" control="jec-notebooks-recent"/>
+        <listbox id="jec-notebooks-recent" disabled="true"/>
+        <label value="All notebooks" control="jec-notebooks-tree"/>
+        <tree id="jec-notebooks-tree" flex="1" seltype="single" hidecolumnpicker="true" disabled="true">
+          <treecols>
+            <treecol id="jec-notebook-title" primary="true" hideheader="true" flex="1"/>
+          </treecols>
+          <treechildren id="jec-notebooks-list"/>
+        </tree>
+      </vbox>
+      <vbox>
+        <listbox flex="1" disabled="true"/>
+      </vbox>
+    </deck>
   </groupbox>
 
   <groupbox>
     <caption label="Tags"/>
-    <textbox id="jec-tags" flex="1" placeholder="Type a tag name or select from the list" disabled="true"/>
-    <listbox id="jec-tag-list" flex="1" rows="5" disabled="true"/>
+    <textbox id="jec-tags" placeholder="Type a tag name or select from the list" disabled="true"/>
+    <listbox id="jec-tag-list" rows="5" disabled="true"/>
   </groupbox>
 
   <groupbox id="jec-attachments">
@@ -31,6 +44,6 @@
 
   <groupbox>
     <caption label="Status"/>
-    <textbox id="jec-status" readonly="true" value="Pending"/>
+    <textbox id="jec-status" readonly="true" tabindex="-1" value="Pending"/>
   </groupbox>
 </window>

@@ -1,10 +1,9 @@
 'use strict';
 
-ChromeUtils.import("resource://gre/modules/FileUtils.jsm");
 ChromeUtils.import("resource:///modules/jsmime.jsm");
 ChromeUtils.import("resource:///modules/gloda/mimemsg.js");
-
-let lastSelectedNotebookId;
+ChromeUtils.import("resource://gre/modules/FileUtils.jsm");
+ChromeUtils.import("resource://gre/modules/osfile.jsm");
 
 class JEC_JoplinError {
   constructor(status, statusText) {
@@ -206,6 +205,7 @@ class JEC_Joplin {
 class JEC_Popup {
   constructor() {
     this.window_ = null;
+    this.notebooks_ = null;
   }
 
   addManualTagsToList_() {
@@ -221,18 +221,12 @@ class JEC_Popup {
     text.value = '';
   }
 
-  addSelectedTagsToList_() {
+  addSelectedTagToList_() {
     const list = this.window_.document.getElementById('jec-tag-list');
-    let selected = false;
+    const item = list.selectedItem;
 
-    Array.from(list.childNodes).filter(e => e.getAttribute('selected')).forEach((e) => {
-      this.addTagToList_(e.getAttribute('label'), e.getAttribute('value'));
-      selected = true;
-    });
-
-    // clearSelection generates a 'selected' event
-    // so we need to avoid infinite recursion
-    if (selected) {
+    if (item) {
+      this.addTagToList_(item.getAttribute('label'), item.getAttribute('value'));
       list.clearSelection();
     }
   }
@@ -252,24 +246,6 @@ class JEC_Popup {
       });
 
       text.appendChild(button);
-    }
-  }
-
-  set attachments(val) {
-    const a = this.window_.document.getElementById('jec-attachments');
-    if (val.length !== 0) {
-      for (let i = 0; i < val.length; i++) {
-        const checkBox = document.createElement('checkbox');
-        checkBox.setAttribute('label', val[i].fileName);
-        checkBox.setAttribute('value', i.toString());
-        checkBox.setAttribute('checked', 'true');
-        a.appendChild(checkBox);
-      }
-    }
-    else {
-      const label = document.createElement('label');
-      label.setAttribute('value', 'None');
-      a.appendChild(label);
     }
   }
 
@@ -310,33 +286,6 @@ class JEC_Popup {
     return !this.window_ || this.window_.closed;
   }
 
-  set notebooks(val) {
-    const menu = this.window_.document.getElementById('jec-notebook-menu');
-    const list = this.window_.document.getElementById('jec-notebook-list');
-    let selection = 0;
-    let i = 0;
-
-    val.forEach((e) => {
-      const menuItem = document.createElement('menuitem');
-      menuItem.setAttribute('label', e.title);
-      menuItem.setAttribute('value', e.id);
-      list.appendChild(menuItem);
-
-      if (lastSelectedNotebookId && (lastSelectedNotebookId === e.id)) {
-        selection = i;
-      }
-
-      i++;
-    });
-
-    menu.addEventListener('command', () => {
-      this.updateSelectedNotebook_();
-    });
-
-    menu.selectedIndex = selection;
-    menu.disabled = false;
-  }
-
   async open() {
     return new Promise((resolve) => {
       this.window_ = window.open(
@@ -357,13 +306,81 @@ class JEC_Popup {
     });
   }
 
+  populateNotebooksTree_(val, select) {
+    const tree = this.window_.document.getElementById('jec-notebooks-tree');
+    const list = this.window_.document.getElementById('jec-notebooks-list');
+
+    function helper(notebook, parentElement) {
+      notebooks.push(notebook);
+
+      const item = document.createElement('treeitem');
+      item.setAttribute('value', notebook.id);
+      if (notebook.children) {
+        item.setAttribute('container', 'true');
+      }
+
+      const row = document.createElement('treerow');
+
+      const cell = document.createElement('treecell');
+      cell.setAttribute('label', notebook.title);
+
+      row.appendChild(cell);
+      item.appendChild(row);
+      parentElement.appendChild(item);
+
+      if (notebook.children) {
+        const nextParent = document.createElement('treechildren');
+        item.appendChild(nextParent);
+
+        notebook.children.forEach(e => helper(e, nextParent));
+      }
+    }
+
+    const notebooks = [];
+    val.forEach(e => helper(e, list));
+    this.notebooks_ = notebooks;
+
+    if (select) {
+      tree.view.selection.clearSelection();
+      tree.view.selection.select(0);
+    }
+
+    return tree;
+  }
+
+  populateRecentPicks_(recentIds, select) {
+    const recent = this.window_.document.getElementById('jec-notebooks-recent');
+    recentIds.forEach((id) => {
+      const nb = this.notebooks_.find(n => n.id === id);
+      if (nb) {
+        const listItem = document.createElement('listitem');
+        listItem.setAttribute('label', nb.title);
+        listItem.setAttribute('value', nb.id);
+        recent.appendChild(listItem);
+      }
+    });
+
+    recent.setAttribute('rows', recentIds.length);
+
+    if (select) {
+      recent.selectedIndex = 0;
+    }
+
+    return recent;
+  }
+
   get selectedAttachmentIndices() {
     return this.checkedAttachmentElements_.map(e => e.getAttribute('value'));
   }
 
   get selectedNotebookId() {
-    const menu = this.window_.document.getElementById('jec-notebook-menu');
-    return menu.selectedItem.getAttribute('value');
+    const recent = this.window_.document.getElementById('jec-notebooks-recent');
+    if (recent.selectedItem) {
+      return recent.selectedItem.getAttribute('value');
+    }
+
+    const tree = this.window_.document.getElementById('jec-notebooks-tree');
+    return tree.view.getItemAtIndex(tree.currentIndex).getAttribute('value');
   }
 
   get selectedTagTitles() {
@@ -372,20 +389,52 @@ class JEC_Popup {
     return Array.from(text.childNodes).map(e => e.getAttribute('label'));
   }
 
-  set status(val) {
+  setAttachments(val) {
+    const a = this.window_.document.getElementById('jec-attachments');
+    if (val.length !== 0) {
+      for (let i = 0; i < val.length; i++) {
+        const checkBox = document.createElement('checkbox');
+        checkBox.setAttribute('label', val[i].fileName);
+        checkBox.setAttribute('value', i.toString());
+        checkBox.setAttribute('checked', 'true');
+        a.appendChild(checkBox);
+      }
+    }
+    else {
+      const label = document.createElement('label');
+      label.setAttribute('value', 'None');
+      a.appendChild(label);
+    }
+  }
+
+  setNotebooks(val, recentIds) {
+    const selectRecent = recentIds.length > 0;
+
+    const tree = this.populateNotebooksTree_(val, !selectRecent);
+    const recent = this.populateRecentPicks_(recentIds, selectRecent);
+
+    tree.addEventListener('select', () => {
+      if ((tree.view.selection.count != 0) && (recent.selectedIndex != -1)) {
+        recent.clearSelection();
+      }
+    });
+
+    recent.addEventListener('select', () => {
+      if ((recent.selectedIndex != -1) && (tree.view.selection.count != 0)) {
+        tree.view.selection.clearSelection();
+      }
+    });
+
+    recent.disabled = false;
+    tree.disabled = false;
+  }
+
+  setStatus(val) {
     const s = this.window_.document.getElementById('jec-status');
     s.value = val;
   }
 
-  tagIsInList_(title) {
-    const text = this.window_.document.getElementById('jec-tags');
-
-    return Array.from(text.childNodes).reduce(
-      (t, e) => t || (e.getAttribute('label') === title),
-      false);
-  }
-
-  set tags(val) {
+  setTags(val) {
     const list = this.window_.document.getElementById('jec-tag-list');
     const text = this.window_.document.getElementById('jec-tags');
 
@@ -396,8 +445,10 @@ class JEC_Popup {
       list.appendChild(listItem);
     });
 
+    list.setAttribute('rows', Math.min(val.length, 5));
+
     list.addEventListener('select', () => {
-      this.addSelectedTagsToList_();
+      this.addSelectedTagToList_();
     });
 
     text.addEventListener('change', () => {
@@ -408,8 +459,12 @@ class JEC_Popup {
     list.disabled = false;
   }
 
-  updateSelectedNotebook_() {
-    lastSelectedNotebookId = this.selectedNotebookId;
+  tagIsInList_(title) {
+    const text = this.window_.document.getElementById('jec-tags');
+
+    return Array.from(text.childNodes).reduce(
+      (t, e) => t || (e.getAttribute('label') === title),
+      false);
   }
 }
 
@@ -527,15 +582,61 @@ class JEC_Thunderbird {
   }
 }
 
+class JEC_Storage {
+  constructor() {
+    this.path_ = OS.Path.join(OS.Constants.Path.profileDir, 'joplin-email-clipper-storage.json');
+    this.data_ = { recentPicks: [] };
+    this.initialized_ = false;
+  }
+
+  async init_() {
+    if (this.initialized_) {
+      return;
+    }
+
+    try {
+      const data = await OS.File.read(this.path_, { encoding: 'utf-8' });
+      this.data_ = Object.assign(this.data_, JSON.parse(data));
+    }
+    catch (error) {
+      if (error.becauseNoSuchFile) {
+        // ignore
+      }
+      else {
+        throw error;
+      }
+    }
+
+    this.initialized_ = true;
+  }
+
+  async getRecentPicks() {
+    await this.init_();
+
+    return this.data_.recentPicks;
+  }
+
+  async setRecentPicks(val) {
+    this.data_.recentPicks = val;
+
+    await this.update_();
+  }
+
+  async update_() {
+    await OS.File.writeAtomic(this.path_, JSON.stringify(this.data_), { encoding: 'utf-8' });
+  }
+}
+
 class JEC_EmailClipper {
   constructor() {
     this.popup_ = new JEC_Popup();
     this.tbird_ = new JEC_Thunderbird();
     this.joplin_ = new JEC_Joplin();
+    this.storage_ = new JEC_Storage();
   }
 
   async connectToJoplin_() {
-    this.popup_.status = 'Looking for service';
+    this.popup_.setStatus('Looking for service');
 
     while (!this.joplin_.connected && !this.popup_.isCancelled) {
       if (!await this.joplin_.connect()) {
@@ -544,7 +645,7 @@ class JEC_EmailClipper {
     }
 
     if (this.joplin_.connected) {
-      this.popup_.status = 'Ready on port ' + this.joplin_.port.toString();
+      this.popup_.setStatus('Ready on port ' + this.joplin_.port.toString());
       return true;
     }
     else {
@@ -558,25 +659,6 @@ class JEC_EmailClipper {
     }
   }
 
-  flattenNotebookList_(list) {
-    const notebooks = [];
-
-    function helper(item, level) {
-      notebooks.push({
-        title: ' . '.repeat(level) + item.title,
-        id: item.id
-      });
-
-      if (item.children) {
-        item.children.forEach(e => helper(e, level + 1));
-      }
-    }
-
-    list.forEach(e => helper(e, 0));
-
-    return notebooks;
-  }
-
   async sendToJoplin() {
     let folder = null;
 
@@ -586,18 +668,20 @@ class JEC_EmailClipper {
     await msg.download();
 
     let attachments = msg.attachments;
-    this.popup_.attachments = attachments;
+    this.popup_.setAttachments(attachments);
 
     if (!await this.connectToJoplin_()) {
       return false;
     }
 
-    this.popup_.notebooks = this.flattenNotebookList_(await this.joplin_.getNotebooks());
-    this.popup_.tags = await this.joplin_.getTags();
+    this.popup_.setNotebooks(await this.joplin_.getNotebooks(), await this.storage_.getRecentPicks());
+    this.popup_.setTags(await this.joplin_.getTags());
 
     if (!await this.popup_.getConfirmation()) {
       return false;
     }
+
+    await this.updateRecentPicks_(this.popup_.selectedNotebookId);
 
     let selectedAttachments = this.popup_.selectedAttachmentIndices.map(i => attachments[i]);
     if (selectedAttachments.length !== 0) {
@@ -627,6 +711,13 @@ class JEC_EmailClipper {
     return new Promise(function (resolve) {
       setTimeout(resolve, ms);
     });
+  }
+
+  async updateRecentPicks_(val) {
+    let selections = await this.storage_.getRecentPicks();
+    selections = selections.filter(id => id !== val);
+    selections.unshift(val);
+    await this.storage_.setRecentPicks(selections.slice(0,5));
   }
 }
 

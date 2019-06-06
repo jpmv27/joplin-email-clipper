@@ -11,7 +11,8 @@
     "gMessageDisplay": "readwrite",
     "jsmime" : "readwrite",
     "messenger" : "readwrite",
-    "MsgHdrToMimeMessage": "readwrite"
+    "MsgHdrToMimeMessage": "readwrite",
+    "OS": "readWrite"
   },
   "parserOptions": {
     "ecmaVersion": 2018

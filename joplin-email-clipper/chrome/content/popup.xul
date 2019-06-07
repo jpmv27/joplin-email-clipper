@@ -9,7 +9,7 @@
   <groupbox flex="1">
     <caption label="Notebook"/>
     <textbox id="jec-notebooks-search" type="search" placeholder="Pick a notebook from the lists or enter a search string" disabled="true"/>
-    <deck flex="1">
+    <deck id="jec-notebooks-deck" flex="1">
       <vbox flex="1">
         <label value="Recent picks" control="jec-notebooks-recent"/>
         <listbox id="jec-notebooks-recent" disabled="true"/>
@@ -22,7 +22,8 @@
         </tree>
       </vbox>
       <vbox>
-        <listbox flex="1" disabled="true"/>
+        <label value="Search results" control="jec-notebooks-results" disabled="true"/>
+        <listbox id="jec-notebooks-results" flex="1"/>
       </vbox>
     </deck>
   </groupbox>

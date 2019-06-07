@@ -473,6 +473,31 @@ class JEC_AttachmentsPicker {
   }
 }
 
+class JEC_StatusBar {
+  constructor(win) {
+    this.status_ = win.document.getElementById('jec-status');
+    this.joplinStatus_ = '';
+    this.tbirdStatus_ = '';
+    this.userStatus_ = '';
+  }
+
+  set status(val) {
+    if ('joplin' in val) {
+      this.joplinStatus_ = val.joplin;
+    }
+
+    if ('tbird' in val) {
+      this.tbirdStatus_ = val.tbird;
+    }
+
+    if ('user' in val) {
+      this.userStatus_ = val.user;
+    }
+
+    this.status_.value = [this.userStatus_, this.tbirdStatus_, this.joplinStatus_].join(' ');
+  }
+}
+
 class JEC_Popup {
   constructor() {
     this.window_ = null;
@@ -481,6 +506,7 @@ class JEC_Popup {
     this.attachments_ = null;
     this.confirm_ = null;
     this.cancel_ = null;
+    this.status_ = null;
     this.waitingForConfirmation_ = false;
   }
 
@@ -541,6 +567,7 @@ class JEC_Popup {
         });
       this.tags_ = new JEC_TagsPicker(this.window_);
       this.attachments_ = new JEC_AttachmentsPicker(this.window_);
+      this.status_ = new JEC_StatusBar(this.window_);
 
       this.cancel_.addEventListener('command', () => {
         this.close();
@@ -571,8 +598,7 @@ class JEC_Popup {
   }
 
   setStatus(val) {
-    const s = this.window_.document.getElementById('jec-status');
-    s.value = val;
+    this.status_.status = val;
   }
 
   setTags(val) {
@@ -748,8 +774,6 @@ class JEC_EmailClipper {
   }
 
   async connectToJoplin_() {
-    this.popup_.setStatus('Looking for service');
-
     while (!this.joplin_.connected && !this.popup_.isCancelled()) {
       if (!await this.joplin_.connect()) {
         await this.sleep_(1000);
@@ -757,7 +781,6 @@ class JEC_EmailClipper {
     }
 
     if (this.joplin_.connected) {
-      this.popup_.setStatus('Ready on port ' + this.joplin_.port.toString());
       return true;
     }
     else {
@@ -776,36 +799,55 @@ class JEC_EmailClipper {
 
     await this.popup_.open();
 
+    this.popup_.setStatus({ tbird: 'Downloading message.' });
+
     const msg = this.tbird_.getCurrentMessage();
     await msg.download();
 
     let attachments = msg.attachments;
     this.popup_.setAttachments(attachments);
 
+    this.popup_.setStatus({ tbird: '', joplin: 'Looking for Joplin service.' });
+
     if (!await this.connectToJoplin_()) {
       return false;
     }
 
+    this.popup_.setStatus({ joplin: 'Found Joplin on port ' + this.joplin_.port.toString() +
+                                    ', getting notebooks and tags.' });
+
     this.popup_.setNotebooks(await this.joplin_.getNotebooks(), await this.storage_.getRecentPicks());
     this.popup_.setTags(await this.joplin_.getTags());
+
+    this.popup_.setStatus({ joplin: '', user: 'Waiting for confirmation.' });
 
     if (!await this.popup_.getConfirmation()) {
       return false;
     }
 
+    this.popup_.setStatus({ user: '' });
+
     await this.updateRecentPicks_(this.popup_.selectedNotebookId);
 
     let selectedAttachments = this.popup_.selectedAttachmentIndices.map(i => attachments[i]);
     if (selectedAttachments.length !== 0) {
+      this.popup_.setStatus({ tbird: 'Downloading attachment(s).' });
+
       folder = this.tbird_.createTemporaryFolder('jec-attachments');
       await this.downloadAttachments_(selectedAttachments, folder);
+
+      this.popup_.setStatus({ tbird: '' });
     }
+
+    this.popup_.setStatus({ joplin: 'Creating note.' });
 
     await this.joplin_.createNote(
       msg,
       this.popup_.selectedNotebookId,
       this.popup_.selectedTagTitles,
       selectedAttachments);
+
+    this.popup_.setStatus({ joplin: 'Note created successfully.' });
 
     attachments = null;
     if (selectedAttachments.length !== 0) {

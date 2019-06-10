@@ -38,6 +38,14 @@
     <caption label="Attachments"/>
   </groupbox>
 
+  <groupbox>
+    <caption label="Options"/>
+    <hbox flex="1">
+      <checkbox id="jec-option-format-title" label="Format title:"/>
+      <textbox id="jec-title-format" flex="1" disabled="true"/>
+    </hbox>
+  </groupbox>
+
   <hbox pack="end">
     <button id="jec-cancel" label="Cancel"/>
     <button id="jec-confirm" label="Confirm" disabled="true" accesskey="c"/>

@@ -5,11 +5,10 @@
   },
   "extends": "eslint:recommended",
   "globals": {
-    "ChromeUtils": "readwrite",
-    "Components": "readwrite",
-    "FileUtils": "readwrite",
+    "ChromeUtils": "readonly",
+    "Ci": "readonly",
+
     "gMessageDisplay": "readwrite",
-    "jsmime" : "readwrite",
     "messenger" : "readwrite",
     "MsgHdrToMimeMessage": "readwrite",
     "OS": "readWrite"

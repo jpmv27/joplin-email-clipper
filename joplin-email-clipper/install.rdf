@@ -9,6 +9,7 @@
     <em:version>0.0.6</em:version>
     <em:creator>jpmv27</em:creator>
     <em:homepageURL>https://github.com/jpmv27/joplin-email-clipper</em:homepageURL>
+    <em:bootstrap>true</em:bootstrap>
 
     <em:targetApplication>
       <Description>

@@ -1,9 +1,11 @@
 'use strict';
 
-ChromeUtils.import("resource:///modules/jsmime.jsm");
-ChromeUtils.import("resource:///modules/gloda/mimemsg.js");
-ChromeUtils.import("resource://gre/modules/FileUtils.jsm");
-ChromeUtils.import("resource://gre/modules/osfile.jsm");
+let EXPORTED_SYMBOLS = ['JEC_EmailClipper'];
+
+let { FileUtils } = ChromeUtils.import('resource://gre/modules/FileUtils.jsm');
+let { jsmime } = ChromeUtils.import('resource:///modules/jsmime.jsm');
+ChromeUtils.import('resource:///modules/gloda/mimemsg.js');
+ChromeUtils.import('resource://gre/modules/osfile.jsm');
 
 class JEC_JoplinError {
   constructor(status, statusText) {
@@ -645,7 +647,7 @@ class JEC_Attachment {
     return new Promise((resolve) => {
       this.file_ = folder.clone();
       this.file_.append(this.attachment_.name);
-      this.file_.createUnique(Components.interfaces.nsIFile.NORMAL_FILE_TYPE, FileUtils.PERMS_FILE);
+      this.file_.createUnique(Ci.nsIFile.NORMAL_FILE_TYPE, FileUtils.PERMS_FILE);
 
       messenger.saveAttachmentToFile(
         this.file_,
@@ -745,7 +747,7 @@ class JEC_Thunderbird {
 
   createTemporaryFolder(name) {
     const folder = FileUtils.getFile("TmpD", [name]);
-    folder.createUnique(Components.interfaces.nsIFile.DIRECTORY_TYPE, FileUtils.PERMS_DIRECTORY);
+    folder.createUnique(Ci.nsIFile.DIRECTORY_TYPE, FileUtils.PERMS_DIRECTORY);
     return folder;
   }
 

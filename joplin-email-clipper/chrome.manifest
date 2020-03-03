@@ -1,4 +1,1 @@
 content     emailclipper    chrome/content/
-
-overlay chrome://messenger/content/messenger.xul chrome://emailclipper/content/menu.xul
-

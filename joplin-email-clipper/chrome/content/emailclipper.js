@@ -589,6 +589,12 @@ class JEC_Popup {
         this.close();
       }, { once: true });
 
+      this.window_.addEventListener('keydown', (event) => {
+        if (event.key == "Escape") {
+          this.close();
+        }
+      });
+
       return true;
     });
   }

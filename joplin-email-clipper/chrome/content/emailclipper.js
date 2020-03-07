@@ -19,6 +19,7 @@ class JEC_JoplinError {
 class JEC_Joplin {
   constructor() {
     this.port_ = -1;
+    this.token_ = "";
   }
 
   addAttachments_(body, attData) {
@@ -78,6 +79,19 @@ class JEC_Joplin {
               ', "tags": ' + JSON.stringify(tagTitles.join(',')) + ' }',
       timeout: 10000
     });
+  }
+
+  async createNotebook(title, notebookId) {
+    const response = await this.request_({
+      method: 'POST',
+      url: this.url_('folders'),
+      headers: { 'Content-Type': 'application/json' },
+      params: '{ "title": ' + JSON.stringify(title) +
+              ', "parent_id": ' + JSON.stringify(notebookId) + ' }',
+      timeout: 10000
+    });
+
+    return JSON.parse(response);
   }
 
   async createResource_(data, title, fileName) {
@@ -166,8 +180,13 @@ class JEC_Joplin {
     });
   }
 
+  set token(val) {
+    this.token_ = val;
+  }
+
   url_(endpoint) {
-    return 'http://127.0.0.1:' + this.port_.toString() + '/' + endpoint;
+    return 'http://127.0.0.1:' + this.port_.toString() + '/' + endpoint +
+      '?token=' + this.token_;
   }
 }
 
@@ -444,8 +463,37 @@ class JEC_AttachmentsPicker {
 
 class JEC_OptionsPicker {
   constructor(win) {
+    this.optionSubnotebook_ = win.document.getElementById('jec-option-create-subnotebook');
+    this.subnotebookName_ = win.document.getElementById('jec-subnotebook-name');
     this.optionFormat_ = win.document.getElementById('jec-option-format-title');
     this.titleFormat_ = win.document.getElementById('jec-title-format');
+
+    this.optionSubnotebook_.addEventListener('command', () => {
+      if (this.optionSubnotebook_.checked) {
+        this.subnotebookName_.disabled = false;
+      }
+      else {
+        this.subnotebookName_.disabled = true;
+      }
+    });
+
+    this.optionFormat_.addEventListener('command', () => {
+      if (this.optionFormat_.checked) {
+        this.titleFormat_.disabled = false;
+      }
+      else {
+        this.titleFormat_.disabled = true;
+      }
+    });
+  }
+
+  getSubnotebookName_() {
+    if (this.optionSubnotebook_.checked) {
+      return this.subnotebookName_.value;
+    }
+    else {
+      return null;
+    }
   }
 
   getTitleFormat_() {
@@ -458,11 +506,13 @@ class JEC_OptionsPicker {
   }
 
   get options() {
-    return { titleFormat: this.getTitleFormat_() };
+    return { titleFormat: this.getTitleFormat_(),
+             subnotebookName: this.getSubnotebookName_() };
   }
 
   set options(val) {
     this.setTitleFormat_(val.titleFormat);
+    // No persistence for sub-notebook option, always initialized empty/disabled
   }
 
   setTitleFormat_(val) {
@@ -475,15 +525,6 @@ class JEC_OptionsPicker {
       this.titleFormat_.disabled = true;
       this.optionFormat_.checked = false;
     }
-
-    this.optionFormat_.addEventListener('command', () => {
-      if (this.optionFormat_.checked) {
-        this.titleFormat_.disabled = false;
-      }
-      else {
-        this.titleFormat_.disabled = true;
-      }
-    });
   }
 }
 
@@ -762,6 +803,14 @@ class JEC_Thunderbird {
   getCurrentMessage() {
     return new JEC_Message(gMessageDisplay.displayedMessage);
   }
+
+  getPreferences(name) {
+    const prefs = Components.classes["@mozilla.org/preferences-service;1"]
+           .getService(Components.interfaces.nsIPrefService)
+           .getBranch('extensions.' + name + '.');
+
+    return { token: prefs.getCharPref("token") };
+  }
 }
 
 class JEC_Storage {
@@ -908,6 +957,9 @@ class JEC_EmailClipper {
   async sendToJoplin() {
     let folder = null;
 
+    const prefs = this.tbird_.getPreferences('emailclipper');
+    this.joplin_.token = prefs.token;
+
     await this.popup_.open();
 
     this.popup_.setStatus({ tbird: 'Downloading message.' });
@@ -939,9 +991,8 @@ class JEC_EmailClipper {
 
     this.popup_.setStatus({ user: '' });
 
-    await this.updateRecentPicks_(this.popup_.selectedNotebookId);
     const options = this.popup_.options;
-    await this.storage_.setOptions(options);
+    let notebookId = this.popup_.selectedNotebookId;
 
     let selectedAttachments = this.popup_.selectedAttachmentIndices.map(i => attachments[i]);
     if (selectedAttachments.length !== 0) {
@@ -951,6 +1002,16 @@ class JEC_EmailClipper {
       await this.downloadAttachments_(selectedAttachments, folder);
 
       this.popup_.setStatus({ tbird: '' });
+    }
+
+    if (options.subnotebookName) {
+      this.popup_.setStatus({ joplin: 'Creating sub-notebook.', tbird: options.subnotebookName });
+
+      const newNotebook = await this.joplin_.createNotebook(
+        options.subnotebookName,
+        notebookId);
+
+      notebookId = newNotebook.id;
     }
 
     this.popup_.setStatus({ joplin: 'Creating note.' });
@@ -966,11 +1027,14 @@ class JEC_EmailClipper {
     await this.joplin_.createNote(
       title,
       body,
-      this.popup_.selectedNotebookId,
+      notebookId,
       this.popup_.selectedTagTitles,
       selectedAttachments);
 
     this.popup_.setStatus({ joplin: 'Note created successfully.' });
+
+    await this.updateRecentPicks_(notebookId);
+    await this.storage_.setOptions(options);
 
     attachments = null;
     if (selectedAttachments.length !== 0) {

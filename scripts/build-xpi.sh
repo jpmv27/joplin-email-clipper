@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 readonly XPI_NAME=joplin-email-clipper
-readonly SOURCE_DIR=joplin-email-clipper
+readonly SOURCE_DIR=joplin-email-clipper@thunderbird.jpmvrealtime.com
 readonly INSTALL_RDF=$SOURCE_DIR/install.rdf
 
 if ! zip --help &> /dev/null; then
